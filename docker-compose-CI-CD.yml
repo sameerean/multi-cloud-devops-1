@@ -1,0 +1,88 @@
+version: '3.5'
+
+networks:
+  mcd1:
+    name: mcd1_net
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.61.0/28
+services:
+  jenkins:
+    image: jenkins/jenkins:jdk11
+    container_name: jenkins
+    ports:
+      - "7070:8080"
+      - "50000:50000"
+    volumes:
+      - "~/jenkins_home:/var/jenkins_home" #Remember that, the tmp directory is designed to be wiped on system reboot.
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      mcd1:
+        ipv4_address: 192.168.61.4
+    domainname: multi-cloud-devops.io
+    hostname: jenkins
+#    restart:  always
+  artifactory:
+    image: docker.bintray.io/jfrog/artifactory-oss:6.9.1
+    container_name: artifactory
+    ports:
+      - "7071:8081"
+    volumes:
+     - ~/artifactory:/var/opt/jfrog/artifactory
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 32000
+        hard: 40000
+    networks:
+      mcd1:
+        ipv4_address: 192.168.61.5
+    domainname: multi-cloud-devops.io
+    hostname: artifactory
+#    restart:  always
+
+
+
+
+  templates:
+    image: portainer/templates
+    container_name: "portainer-templates"
+    networks:
+      mcd1:
+        ipv4_address: 192.168.61.6
+    domainname: multi-cloud-devops.io
+    hostname: templates
+#    restart:  always
+
+  portainer:
+    image: portainer/portainer
+    restart: always
+    container_name: "portainer-app"
+    ports:
+      - "9000:9000"
+#Automatically choose 'Manage the Docker instance where Portainer is running' by adding <--host=unix:///var/run/docker.sock> to the command
+    command: --templates http://templates/templates.json
+    networks:
+      mcd1:
+        ipv4_address: 192.168.61.7
+    domainname: multi-cloud-devops.io
+    hostname: portainer
+#    restart:  always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/portainer/data:/data
+
+  watchtower:
+    image: v2tec/watchtower
+    container_name: "portainer-watchtower"
+    command: --cleanup portainer-app portainer-watchtower portainer/templates
+    networks:
+      mcd1:
+        ipv4_address: 192.168.61.8
+    domainname: multi-cloud-devops.io
+    hostname: watchtower
+#    restart:  always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
